@@ -249,6 +249,10 @@ class NumerationMap:
     def __iter__(self):
         return iter(self._numMap)
 
+    @property
+    def MAX_MAP_ENTRIES(self):
+        return self._MAX_MAP_ENTRIES
+
 
 class KbRelation:
     """
@@ -257,7 +261,7 @@ class KbRelation:
 
     __INT_SIZE = struct.calcsize('i')
 
-    def __init__(self, name: str, numeration: int, arity: int, records: int, kbPath: str = None, numMap: dict = None) -> None:
+    def __init__(self, name: str, numeration: int, arity: int, records: int = 0, kbPath: str = None, numMap: dict = None) -> None:
         """
         Load a single relation file from the local file system. If the 'numMap' is not 'None', every loaded numeration
         is checked for validness in the map.

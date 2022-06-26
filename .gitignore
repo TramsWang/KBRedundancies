@@ -4,6 +4,8 @@
 !/common
 !/1-CommunityContributed
 !/2-Open-domainExtraction
+/2-Open-domainExtraction/data
+/2-Open-domainExtraction/scripts/yago1/__pycache__
 !/3-InformationExtraction
 !/4-LexicalThesaurus
 !/5-LogicBased
