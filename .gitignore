@@ -12,6 +12,6 @@
 
 # /common
 /common/*
-!/common/NumeratedKBFormat.md
+!/common/*.md
 !/common/*.py
 !/common/test.sh
