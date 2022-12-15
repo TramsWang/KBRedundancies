@@ -10,9 +10,18 @@ from time import sleep
 import xlwt
 import psutil
 import argparse
-import os
 import gc
 from glob import glob
+
+def sortRelations(relation_list: list):
+    sort_list = list()
+    for relation_path in relation_list:
+        rel_name, arity, record_cnt = parseRelFilePath(relation_path)
+        sort_list.append([record_cnt, relation_path])
+    sort_list.sort(reverse=True)
+    relation_list.clear()
+    for pair in sort_list:
+        relation_list.append(pair[1])
 
 # TODO: different kb may use different method to store type information
 def getTypes(types : set, relation : KbRelation):
@@ -82,6 +91,7 @@ def checkReified(relation: KbRelation, integers: set, map: NumerationMap) -> boo
     return is_reified
 
 def constructDict(relation: KbRelation, total_entity: set, o_to_s: dict, s_to_o: dict):
+    # f = open("./test", 'w')
     for record in relation.getRecordSet():
         pos = 1
         sub = 0
@@ -94,32 +104,42 @@ def constructDict(relation: KbRelation, total_entity: set, o_to_s: dict, s_to_o:
             else:
                 ob = num
         if s_to_o.get(sub) is not None:
+            # f.write(str(sub))
+            # f.write(" found\n")
             arr = s_to_o.get(sub)
             arr.append(ob)
         else:
-            s_to_o[num] = [ob]
+            # f.write(str(sub))
+            # f.write(" not found\n")
+            s_to_o[sub] = [ob]
         if o_to_s.get(ob) is not None:
             arr = o_to_s.get(ob)
             arr.append(sub)
         else:
-            o_to_s[num] = [sub]
+            o_to_s[ob] = [sub]
 
 def getMeta(name: str, path: str, indexmode: int, index: int, indexpath: str, dstpath: str):
     # new Excel
     excel = xlwt.Workbook(encoding='utf-8')
+    style4 = xlwt.XFStyle()
+    style4.num_format_str = "0.000E+00"
+    styleComma = xlwt.XFStyle()
+    styleComma.num_format_str = "#,##0"
+    styleCommaWithDot = xlwt.XFStyle()
+    styleCommaWithDot.num_format_str = "0.000E+00"
     # add Excel sheet2 and title info
-    excelsheet = excel.add_sheet('relations')
+    excelsheet = excel.add_sheet('Relations')
     excelsheet.write(0, 0, "relation")
     excelsheet.write(0, 1, "id")
-    excelsheet.write(0, 2, "instances")
-    excelsheet.write(0, 3, "propotion")
+    excelsheet.write(0, 2, "#inst")
+    excelsheet.write(0, 3, "prop. (%)")
     excelsheet.write(0, 4, "property")
     excelsheet.write(0, 5, "reified")
-    excelsheet.write(0, 6, "entites")
-    excelsheet.write(0, 7, "subjects")
-    excelsheet.write(0, 8, "objects")
-    excelsheet.write(0, 9, "functionality")
-    excelsheet.write(0, 10, "symmetricity")
+    excelsheet.write(0, 6, "#ent.")
+    excelsheet.write(0, 7, "#sub.")
+    excelsheet.write(0, 8, "#obj.")
+    excelsheet.write(0, 9, "functionality (%)")
+    excelsheet.write(0, 10, "symmetry (%)")
     print(path)
     map = NumerationMap(path)
     mem = psutil.virtual_memory()
@@ -164,6 +184,7 @@ def getMeta(name: str, path: str, indexmode: int, index: int, indexpath: str, ds
         if rel_name == "type":
             relation = KbRelation(rel_name, num, arity, record_cnt, path)
             getTypes(types, relation)
+    sortRelations(relation_list)
     for relation_path in relation_list:
         mem = psutil.virtual_memory()
         used = mem.free / 1024 / 1024 / 1024
@@ -179,9 +200,9 @@ def getMeta(name: str, path: str, indexmode: int, index: int, indexpath: str, ds
         # write id
         excelsheet.write(row, 1, map.name2Num(rel_name))
         # write num of instances
-        excelsheet.write(row, 2, record_cnt)
+        excelsheet.write(row, 2, record_cnt, styleComma)
         # write propotion
-        excelsheet.write(row, 3, relation.totalRecords() / total_records)
+        excelsheet.write(row, 3, relation.totalRecords() / total_records * 100, style4)
         # TODO:only consider type date integer, other situation is not considered
         # check if it is property
         property = checkProperty(relation, integers, types, map, index)
@@ -202,22 +223,24 @@ def getMeta(name: str, path: str, indexmode: int, index: int, indexpath: str, ds
         total_entity = set()
         s_to_o = dict()
         o_to_s = dict()
-        constructDict(relation, total_entity, s_to_o, o_to_s)
-        excelsheet.write(row, 6, len(total_entity))
-        excelsheet.write(row, 7, len(s_to_o))
-        excelsheet.write(row, 8, len(o_to_s))
+        constructDict(relation, total_entity, o_to_s, s_to_o)
+        excelsheet.write(row, 6, len(total_entity), styleComma)
+        excelsheet.write(row, 7, len(s_to_o), styleComma)
+        excelsheet.write(row, 8, len(o_to_s), styleComma)
         print(len(total_entity), len(s_to_o), len(o_to_s))
+        print(len(s_to_o.keys()))
+        print(len(o_to_s.keys()))
         symmetricity_num = 0
         for key in s_to_o:
             for ob in s_to_o[key]:
-                if o_to_s.get(ob) is not None:
-                    for sub in o_to_s[ob]:
-                        if(sub == key):
+                if s_to_o.get(ob) is not None:
+                    for ob1 in s_to_o[ob]:
+                        if(ob1 == key):
                             symmetricity_num = symmetricity_num + 1
-        excelsheet.write(row, 10, symmetricity_num)
+        excelsheet.write(row, 10, symmetricity_num / record_cnt * 100, style4)
         # calculate functionality
         functionality = len(s_to_o) / len(total_entity)
-        excelsheet.write(row, 9, functionality)
+        excelsheet.write(row, 9, functionality * 100, style4)
         del relation
         gc.collect()
         sleep(3)
@@ -225,21 +248,21 @@ def getMeta(name: str, path: str, indexmode: int, index: int, indexpath: str, ds
         used = mem.free / 1024 / 1024 / 1024
         print("free mem after begin", used)
     # add Excel sheet1 and title info
-    excelsheet = excel.add_sheet('overview')
-    excelsheet.write(0, 0, "dataset")
-    excelsheet.write(0, 1, "relations")
-    excelsheet.write(0, 2, "entities")
-    excelsheet.write(0, 3, "classes")
-    excelsheet.write(0, 4, "degrees")
-    excelsheet.write(1, 0, "yago1")
-    excelsheet.write(1, 1, relation_num)
-    excelsheet.write(1, 2, entity_num)
-    excelsheet.write(1, 3, len(types))
+    excelsheet = excel.add_sheet('Overview')
+    excelsheet.write(0, 0, "KB")
+    excelsheet.write(0, 1, "#rel.")
+    excelsheet.write(0, 2, "#ent.")
+    excelsheet.write(0, 3, "#cls.")
+    excelsheet.write(0, 4, "avg. dgr.")
+    excelsheet.write(1, 0, name)
+    excelsheet.write(1, 1, relation_num, styleComma)
+    excelsheet.write(1, 2, entity_num, styleComma)
+    excelsheet.write(1, 3, len(types), styleComma)
     total_degree = 0
     for key in degrees:
         total_degree = total_degree + degrees[key]
     avg_degree = total_degree / entity_num
-    excelsheet.write(1, 4, avg_degree)
+    excelsheet.write(1, 4, avg_degree, styleCommaWithDot)
     excel.save(dstpath)
 
 def isdate(datestr):
