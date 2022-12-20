@@ -56,7 +56,7 @@ The code for SInC is [here](https://github.com/TramsWang/SInC)
 
 ## 4. Repo Organization
 
-This repos is organized as follows:
+This repo is organized as follows:
 
 ```
 ┳ README.md
@@ -71,3 +71,7 @@ This repos is organized as follows:
 ┣ 4-LexicalThesaurus        [Results for type-4 KBs]
 ┗ 5-LogicBased              [Results for type-5 KBs]
 ```
+
+## 5. Dependencies
+This repo is dependent on the NumerationKb formatter class implemented in [SInC](https://github.com/TramsWang/SInC).
+Therefore, the code in SInC (version 2.1) should be installed in local maven repo.
