@@ -52,6 +52,8 @@ public abstract class Converter {
      */
     public void convert() throws ConverterException {
         /* Load triples one by one */
+        System.out.println("Loading triples ... ");
+        long time_start = System.currentTimeMillis();
         Iterator<Triple> iterator = tripleIterator();
         int failed_triples = 0;
         while (iterator.hasNext()) {
@@ -70,9 +72,12 @@ public abstract class Converter {
             System.err.printf("%d triples failed to be loaded to numerated KB\n", failed_triples);
         }
         typeRelation = getTypeRelation();
+        long time_loaded = System.currentTimeMillis();
+        System.out.printf("Done (%d s)\n", (time_loaded - time_start) / 1000);
 
         /* Re-arrange the order of numerations to make them more concentrate in each relation */
         /* Note: type relation will be handled at the last and will be treated as a single binary relation */
+        System.out.println("Rearranging mappings ... ");
         int[] old_2_new = new int[kb.totalMappings()+1];    // Old integer numerations to new
         int next_num = 1;
         List<KbRelation> relations = new ArrayList<>(kb.getRelations());
@@ -114,9 +119,12 @@ public abstract class Converter {
             ));
         }
         kb.rearrangeMapping(old_2_new);
+        long time_rearranged = System.currentTimeMillis();
+        System.out.printf("Done (%d s)\n", (time_rearranged - time_loaded) / 1000);
 
         /* Dump the KB */
         /* Type values will be dumped to a single file "TypeValues.dat" */
+        System.out.println("Dumping ... ");
         try {
             kb.dump(outputPath);
         } catch (IOException e) {
@@ -133,6 +141,9 @@ public abstract class Converter {
                 e.printStackTrace();
             }
         }
+        long time_dumped = System.currentTimeMillis();
+        System.out.printf("Done (%d s)\n", (time_dumped - time_rearranged) / 1000);
+        System.out.printf("Totoal Time: %d s\n", (time_dumped - time_start) / 1000);
     }
 
     /**

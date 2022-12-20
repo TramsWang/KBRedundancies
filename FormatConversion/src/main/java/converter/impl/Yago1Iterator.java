@@ -11,13 +11,14 @@ import java.util.Iterator;
  */
 public class Yago1Iterator implements Iterator<Triple> {
 
-    protected final File[] dirFiles;
+    protected File[] dirFiles;
     protected int dirIdx;
     protected File[] tripleFiles = new File[0];
     protected int tripleFileIdx;
     protected BufferedReader reader = null;
     protected String predicate;
     protected Triple nextTriple = null;
+    protected long time_start;
 
     public Yago1Iterator(String kbPath) {
         File[] dir_files = new File(kbPath).listFiles();
@@ -31,9 +32,12 @@ public class Yago1Iterator implements Iterator<Triple> {
                 continue;
             }
             tripleFiles = dir_file.listFiles();
-            tripleFiles = (null == tripleFiles) ? new File[0]: tripleFiles;
+            tripleFiles = (null == tripleFiles) ? new File[0] : tripleFiles;
             tripleFileIdx = 0;
+            time_start = System.currentTimeMillis();
+            break;
         }
+        dirIdx++;
     }
 
     @Override
@@ -86,6 +90,12 @@ public class Yago1Iterator implements Iterator<Triple> {
         }
 
         /* Change dir file */
+        long time_done = System.currentTimeMillis();
+        System.out.printf(
+                "Relation '%s' loaded (%d ms, %d/%d finished)\n", dirFiles[dirIdx-1].getName(),
+                time_done - time_start, dirIdx, dirFiles.length
+        );
+        time_start = time_done;
         for (; dirIdx < dirFiles.length && null == nextTriple; dirIdx++) {
             File dir_file = dirFiles[dirIdx];
             predicate = dir_file.getName();
