@@ -7,6 +7,7 @@ import sinc2.sampling.Edge;
 import sinc2.sampling.Sampler;
 import sinc2.sampling.SamplingInfo;
 import sinc2.util.LittleEndianIntIO;
+import sinc2.util.io.IntWriter;
 import sinc2.util.kb.NumeratedKb;
 import sinc2.util.kb.NumerationMap;
 
@@ -83,7 +84,7 @@ public class MajorNodeSampler extends Sampler {
         SamplingInfo ret = formatSampledKb(sampledKbName, sampled_relations, rel_names);
         long time_formatted = System.currentTimeMillis();
         System.out.printf("Done (%d s)\n", (time_formatted - time_selected) / 1000);
-        System.out.printf("Total Time: %d s\n", (time_formatted - time_start) / 1000);
+        System.out.printf("Total Sampling Time: %d s\n", (time_formatted - time_start) / 1000);
         return ret;
     }
 
@@ -98,19 +99,28 @@ public class MajorNodeSampler extends Sampler {
         final String sampled_kb_name = args[3];
         final int budget = Integer.parseInt(args[4]);
 
+        System.out.println("Loading original KB ...");
+        long time_start = System.currentTimeMillis();
         SimpleKb original_kb = new SimpleKb(original_kb_name, input_path);
+        long time_loaded = System.currentTimeMillis();
+        System.out.printf("Done (%d s)\n", (time_loaded - time_start) / 1000);
         SamplingInfo sampled_info = new MajorNodeSampler(loadTypeValues(original_kb_name, input_path))
                 .sample(original_kb, budget, sampled_kb_name);
+        long time_sampled = System.currentTimeMillis();
+        System.out.println("Dumping ...");
         sampled_info.sampledKb.dump(
                 output_path, findNewMappings(
                         original_kb_name, input_path, original_kb.totalConstants(), sampled_info.constMap
                 )
         );
-        FileOutputStream fos = new FileOutputStream(Paths.get(output_path, sampled_kb_name, CONST_MAP_FILE_NAME).toFile());
-        for (int i = 1; i < sampled_info.constMap.length; i++) {
-            fos.write(LittleEndianIntIO.leInt2ByteArray(sampled_info.constMap[i]));
+        IntWriter writer = new IntWriter(Paths.get(output_path, sampled_kb_name, CONST_MAP_FILE_NAME).toFile());
+        for (int i = 1; i < sampled_info.constMap.length; i++) {    // The first element is always 0, skip
+            writer.write(sampled_info.constMap[i]);
         }
-        fos.close();
+        writer.close();
+        long time_done = System.currentTimeMillis();
+        System.out.printf("Done (%d s)\n", (time_done - time_sampled) / 1000);
+        System.out.printf("Total Time: %d s\n", (time_done - time_start) / 1000);
     }
 
     static protected Set<Integer> loadTypeValues(String kbName, String kbPath) {
