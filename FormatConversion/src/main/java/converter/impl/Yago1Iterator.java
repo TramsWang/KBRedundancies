@@ -1,16 +1,26 @@
 package converter.impl;
 
 import converter.Converter;
+import converter.ConverterException;
 import converter.Triple;
 
 import java.io.*;
+import java.nio.file.Paths;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
 
 /**
  * Iterator for YGAO-1 structure.
  */
 public class Yago1Iterator implements Iterator<Triple> {
 
+    /** The directory of facts */
+    protected static final String FACTS_DIR = "facts";
+    /** The directory of entities */
+    protected static final String ENTITIES_DIR = "entities";
+
+    protected Set<String> entities = new HashSet<>();
     protected File[] dirFiles;
     protected int dirIdx;
     protected File[] tripleFiles = new File[0];
@@ -20,9 +30,30 @@ public class Yago1Iterator implements Iterator<Triple> {
     protected Triple nextTriple = null;
     protected long time_start;
 
-    public Yago1Iterator(String kbPath) {
-        File[] dir_files = new File(kbPath).listFiles();
-        this.dirFiles = (null == dir_files) ? new File[0] : dir_files;
+    public Yago1Iterator(String kbPath) throws ConverterException {
+        /* Load entities */
+        File entity_dir_file = Paths.get(kbPath, ENTITIES_DIR).toFile();
+        File[] entities_files = entity_dir_file.listFiles();
+        if (null == entities_files) {
+            throw new ConverterException("Cannot list entity files in dir: " + entity_dir_file.getAbsolutePath());
+        }
+        for (File entity_file: entities_files) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(entity_file))) {
+                String line;
+                while (null != (line = reader.readLine())) {
+                    entities.add(line.split("\t")[0]);
+                }
+            } catch (IOException e) {
+                throw new ConverterException(e);
+            }
+        }
+
+        /* Load facts */
+        File fact_dir_file = Paths.get(kbPath, FACTS_DIR).toFile();
+        this.dirFiles = fact_dir_file.listFiles();
+        if (null == this.dirFiles) {
+            throw new ConverterException("Cannot list fact files in dir: " + fact_dir_file.getAbsolutePath());
+        }
         for (dirIdx = 0; dirIdx < dirFiles.length; dirIdx++) {
             /* Locate the first dir */
             File dir_file = dirFiles[dirIdx];
@@ -32,7 +63,10 @@ public class Yago1Iterator implements Iterator<Triple> {
                 continue;
             }
             tripleFiles = dir_file.listFiles();
-            tripleFiles = (null == tripleFiles) ? new File[0] : tripleFiles;
+            if (null == tripleFiles) {
+                System.err.println("Warning: Cannot list facts in path: " + dir_file.getAbsolutePath());
+                tripleFiles = new File[0];
+            }
             tripleFileIdx = 0;
             time_start = System.currentTimeMillis();
             break;
@@ -43,16 +77,23 @@ public class Yago1Iterator implements Iterator<Triple> {
     @Override
     public boolean hasNext() {
         /* Exhausting current triple file */
+        nextTriple = null;
         if (null != reader) {
             try {
-                String line = reader.readLine();
-                if (null == line) {
-                    reader.close();
-                    reader = null;
-                } else {
-                    String[] components = line.split("\t");
-                    nextTriple = new Triple(components[1], predicate, components[2]);
-                    return true;
+                while (null == nextTriple) {
+                    String line = reader.readLine();
+                    if (null == line) {
+                        reader.close();
+                        reader = null;
+                        break;
+                    } else {
+                        String[] components = line.split("\t");
+                        if (entities.contains(components[1]) && entities.contains(components[2])) {
+                            /* Only convert triples between two entities */
+                            nextTriple = new Triple(components[1], predicate, components[2]);
+                            return true;
+                        }
+                    }
                 }
             } catch (IOException e) {
                 System.err.println("Error occurred reading the file: " + tripleFiles[tripleFileIdx].getAbsolutePath());
@@ -62,7 +103,6 @@ public class Yago1Iterator implements Iterator<Triple> {
         }
 
         /* Change triple file */
-        nextTriple = null;
         for (; tripleFileIdx < tripleFiles.length && null == nextTriple; tripleFileIdx++) {
             File triple_file = tripleFiles[tripleFileIdx];
             if (!triple_file.isFile()) {
@@ -70,23 +110,27 @@ public class Yago1Iterator implements Iterator<Triple> {
             }
             try {
                 reader = new BufferedReader(new FileReader(triple_file));
-                String line = reader.readLine();
-                if (null == line) {
-                    reader.close();
-                    reader = null;
-                } else {
-                    String[] components = line.split("\t");
-                    nextTriple = new Triple(components[1], predicate, components[2]);
-                    /* Should not return here, "tripleFileIdx++" should take effect */
+                while (null == nextTriple) {
+                    String line = reader.readLine();
+                    if (null == line) {
+                        reader.close();
+                        reader = null;
+                        break;
+                    } else {
+                        String[] components = line.split("\t");
+                        if (entities.contains(components[1]) && entities.contains(components[2])) {
+                            /* Only convert triples between two entities */
+                            nextTriple = new Triple(components[1], predicate, components[2]);
+                            tripleFileIdx++;
+                            return true;
+                        }
+                    }
                 }
             } catch (IOException e) {
                 System.err.println("Failed to load triple file: " + triple_file.getAbsolutePath());
                 e.printStackTrace();
                 return false;
             }
-        }
-        if (null != nextTriple) {
-            return true;
         }
 
         /* Change dir file */
@@ -104,7 +148,10 @@ public class Yago1Iterator implements Iterator<Triple> {
                 continue;
             }
             tripleFiles = dir_file.listFiles();
-            tripleFiles = (null == tripleFiles) ? new File[0]: tripleFiles;
+            if (null == tripleFiles) {
+                System.err.println("Warning: Cannot list facts in path: " + dir_file.getAbsolutePath());
+                tripleFiles = new File[0];
+            }
             for (tripleFileIdx = 0; tripleFileIdx < tripleFiles.length && null == nextTriple; tripleFileIdx++) {
                 File triple_file = tripleFiles[tripleFileIdx];
                 if (!triple_file.isFile()) {
@@ -112,13 +159,22 @@ public class Yago1Iterator implements Iterator<Triple> {
                 }
                 try {
                     reader = new BufferedReader(new FileReader(triple_file));
-                    String line = reader.readLine();
-                    if (null == line) {
-                        reader.close();
-                        reader = null;
-                    } else {
-                        String[] components = line.split("\t");
-                        nextTriple = new Triple(components[1], predicate, components[2]);
+                    while (null == nextTriple) {
+                        String line = reader.readLine();
+                        if (null == line) {
+                            reader.close();
+                            reader = null;
+                            break;
+                        } else {
+                            String[] components = line.split("\t");
+                            if (entities.contains(components[1]) && entities.contains(components[2])) {
+                                /* Only convert triples between two entities */
+                                nextTriple = new Triple(components[1], predicate, components[2]);
+                                tripleFileIdx++;
+                                dirIdx++;
+                                return true;
+                            }
+                        }
                     }
                 } catch (IOException e) {
                     System.err.println("Failed to load triple file: " + triple_file.getAbsolutePath());
@@ -126,7 +182,7 @@ public class Yago1Iterator implements Iterator<Triple> {
                 }
             }
         }
-        return null != nextTriple;
+        return false;
     }
 
     @Override

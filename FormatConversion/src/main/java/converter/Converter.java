@@ -149,7 +149,7 @@ public abstract class Converter {
     /**
      * Get an iterator of triples in the original KB.
      */
-    abstract protected Iterator<Triple> tripleIterator();
+    abstract protected Iterator<Triple> tripleIterator() throws ConverterException;
 
     /**
      * Check if the predicate should be skipped.

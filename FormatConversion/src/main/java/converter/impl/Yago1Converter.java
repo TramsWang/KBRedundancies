@@ -1,6 +1,7 @@
 package converter.impl;
 
 import converter.Converter;
+import converter.ConverterException;
 import converter.Triple;
 
 import java.util.HashSet;
@@ -29,7 +30,7 @@ public class Yago1Converter extends Converter {
     }
 
     @Override
-    protected Iterator<Triple> tripleIterator() {
+    protected Iterator<Triple> tripleIterator() throws ConverterException {
         return new Yago1Iterator(kbPath);
     }
 
